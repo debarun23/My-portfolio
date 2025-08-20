@@ -7,6 +7,7 @@ interface Command {
   input: string;
   output: React.ReactNode;
   timestamp: Date;
+  isTyping?: boolean;
 }
 
 interface TerminalInterfaceProps {
@@ -23,6 +24,31 @@ interface TerminalInterfaceProps {
     leadership: React.ReactNode;
   };
 }
+
+// Simple typing effect component for strings
+const TypingText: React.FC<{
+  text: string;
+  speed?: number;
+  onComplete?: () => void;
+}> = ({ text, speed = 30, onComplete }) => {
+  const [displayedText, setDisplayedText] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timer = setTimeout(() => {
+        setDisplayedText((prev) => prev + text[currentIndex]);
+        setCurrentIndex((prev) => prev + 1);
+      }, speed);
+
+      return () => clearTimeout(timer);
+    } else if (onComplete) {
+      onComplete();
+    }
+  }, [currentIndex, text, speed, onComplete]);
+
+  return <>{displayedText}</>;
+};
 
 const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
   activeCommand,
@@ -176,14 +202,22 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
     const welcomeMessage = (
       <div>
         <div className="text-green-400 text-lg font-bold mb-4">
-          Welcome to Debarun's Portfolio Terminal
+          <TypingText
+            text="Welcome to Debarun's Portfolio Terminal"
+            speed={50}
+          />
         </div>
         <div className="mb-2">
-          Type 'help' to see available commands or click on the navigation
-          above.
+          <TypingText
+            text="Type 'help' to see available commands or click on the navigation above."
+            speed={30}
+          />
         </div>
         <div className="text-sm text-green-300">
-          Navigate through my portfolio using terminal commands!
+          <TypingText
+            text="Navigate through my portfolio using terminal commands!"
+            speed={30}
+          />
         </div>
       </div>
     );
@@ -193,6 +227,7 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
         input: "welcome",
         output: welcomeMessage,
         timestamp: new Date(),
+        isTyping: true,
       },
     ]);
   }, []);
@@ -233,50 +268,77 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
       case "help":
         output = (
           <div>
-            <div className="text-green-400">Available commands:</div>
+            <div className="text-green-400">
+              <TypingText text="Available commands:" speed={20} />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
               <div>
-                <span className="text-green-400">about</span> - Learn about me
+                <span className="text-green-400">about</span> -{" "}
+                <TypingText text="Learn about me" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">projects</span> - View my
-                projects
+                <span className="text-green-400">projects</span> -{" "}
+                <TypingText text="View my projects" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">skills</span> - See my
-                technical skills
+                <span className="text-green-400">skills</span> -{" "}
+                <TypingText text="See my technical skills" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">experience</span> - My work
-                experience
+                <span className="text-green-400">experience</span> -{" "}
+                <TypingText text="My work experience" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">contact</span> - How to reach
-                me
+                <span className="text-green-400">contact</span> -{" "}
+                <TypingText text="How to reach me" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">education</span> - My
-                educational background
+                <span className="text-green-400">education</span> -{" "}
+                <TypingText text="My educational background" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">certifications</span> - View my
-                certifications
+                <span className="text-green-400">certifications</span> -{" "}
+                <TypingText text="View my certifications" speed={20} />
               </div>
               <div>
-                <span className="text-green-400">leadership</span> - Leadership
-                and community involvement
+                <span className="text-green-400">leadership</span> -{" "}
+                <TypingText
+                  text="Leadership and community involvement"
+                  speed={20}
+                />
               </div>
               <div>
-                <span className="text-green-400">clear</span> - Clear the
-                terminal
+                <span className="text-green-400">clear</span> -{" "}
+                <TypingText text="Clear the terminal" speed={20} />
               </div>
             </div>
-            <div className="mt-4">Type any command to continue...</div>
+            <div className="mt-4">
+              <TypingText text="Type any command to continue..." speed={20} />
+            </div>
           </div>
         );
         break;
       case "about":
-        output = portfolioContent.about || <div>No data available</div>;
+        output = (
+          <div>
+            <TypingText
+              text="I am a B.Tech graduate in Electronics and Communication Engineering with expertise in full-stack development, cloud computing, and AI technologies."
+              speed={10}
+            />
+            <br />
+            <br />
+            <TypingText
+              text="Proficient in Java, JavaScript, React.js, Next.js, SQL, and Docker, I enjoy creating scalable, intelligent, and user-focused solutions."
+              speed={10}
+            />
+            <br />
+            <br />
+            <TypingText
+              text="With a strong foundation in REST APIs, OOP, Agile methodology, CI/CD, and responsive design, I am eager to contribute to the industry, solve real-world problems, and drive innovation through impactful software development."
+              speed={10}
+            />
+          </div>
+        );
         break;
       case "projects":
         output = portfolioContent.projects || <div>No data available</div>;
@@ -306,7 +368,9 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
         return;
       case "sudo":
         output = (
-          <div className="text-red-500">Permission denied: Nice try! 😉</div>
+          <div className="text-red-500">
+            <TypingText text="Permission denied: Nice try! 😉" speed={20} />
+          </div>
         );
         break;
       case "":
@@ -314,8 +378,10 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
       default:
         output = (
           <div>
-            Command not found: {trimmedInput}. Type 'help' for available
-            commands.
+            <TypingText
+              text={`Command not found: ${trimmedInput}. Type 'help' for available commands.`}
+              speed={10}
+            />
           </div>
         );
     }
@@ -324,6 +390,7 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
       input: trimmedInput,
       output,
       timestamp: new Date(),
+      isTyping: true,
     };
 
     setCommands((prev) => [...prev, newCommand]);
@@ -407,7 +474,14 @@ const TerminalInterface: React.FC<TerminalInterfaceProps> = ({
               autoFocus
             />
             {cursorVisible && (
-              <span className="absolute top-0 left-0 ml-[calc(8px*{currentInput.length})]">
+              <span
+                className="absolute top-0 left-0 ml-[length:var(--cursor-position)]"
+                style={
+                  {
+                    "--cursor-position": `${currentInput.length * 8}px`,
+                  } as React.CSSProperties
+                }
+              >
                 <motion.div
                   animate={{ opacity: [1, 0, 1] }}
                   transition={{ repeat: Infinity, duration: 1 }}
