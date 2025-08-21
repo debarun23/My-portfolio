@@ -14,6 +14,7 @@ interface IDCardProps {
 }
 type ConsoleLine = { text: string; kind?: "in" | "out" | "sys" };
 const EGG_MSG = "ᚹᛖ ᛏᚱᚢᛊᛏ ᛁᚾ ᛟᛞᛁᚾ ᛏᛁᛚᛚ ᚢᚨᛚᚺᚨᛚᛚᚨ";
+const SPECIAL_PHOTO_URL = "https://i.imghippo.com/files/eeg1100koY.jpg";
 const IDCard = ({
   name = "Debarun Das",
   title = "Software Engineer",
@@ -41,6 +42,8 @@ const IDCard = ({
   const [shakeLock, setShakeLock] = useState(false);
   // Pulse glow on unlock success
   const [pulseGlow, setPulseGlow] = useState(false);
+  // Photo URL state to support dynamic change on secret key
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState(photoUrl);
   // Motion values
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -176,6 +179,16 @@ const IDCard = ({
           pushConsole({ text: "unlock success", kind: "sys" });
           setPulseGlow(true);
           setTimeout(() => setPulseGlow(false), 1500);
+          setCurrentPhotoUrl(photoUrl); // reset to default photo if previously changed
+        } else if (arg.toLowerCase() === "chess") {
+          setLocked(false);
+          pushConsole({
+            text: "unlock success (chess key) - photo changed",
+            kind: "sys",
+          });
+          setPulseGlow(true);
+          setTimeout(() => setPulseGlow(false), 1500);
+          setCurrentPhotoUrl(SPECIAL_PHOTO_URL);
         } else {
           pushConsole({ text: "unlock failed", kind: "out" });
           // trigger shake effect on failed unlock
@@ -388,6 +401,12 @@ const IDCard = ({
                             setTyped("");
                             setPulseGlow(true);
                             setTimeout(() => setPulseGlow(false), 1500);
+                            setCurrentPhotoUrl(photoUrl);
+                          } else if (typed.trim().toLowerCase() === "chess") {
+                            setLocked(false);
+                            setPulseGlow(true);
+                            setTimeout(() => setPulseGlow(false), 1500);
+                            setCurrentPhotoUrl(SPECIAL_PHOTO_URL);
                           } else {
                             setShakeLock(true);
                             setTimeout(() => setShakeLock(false), 300);
@@ -469,7 +488,7 @@ const IDCard = ({
                 transition={{ duration: 1.2 }}
               >
                 <motion.img
-                  src={photoUrl}
+                  src={currentPhotoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
                   whileHover={{
