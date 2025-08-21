@@ -205,7 +205,7 @@ const PortfolioContent = {
         </div>
         <div className="text-sm text-gray-300">June 2025 - July 2025</div>
       </div>
-      <div className="mb-3">
+     
       <div className="mb-3">
         <div className="font-bold text-green-300">
           Deloitte Australia - Technology Job Simulation
