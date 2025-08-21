@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   motion,
   useMotionValue,
@@ -14,6 +14,10 @@ interface IDCardProps {
   username?: string;
 }
 
+type ConsoleLine = { text: string; kind?: "in" | "out" | "sys" };
+
+const EGG_MSG = "ᚹᛖ ᛏᚱᚢᛊᛏ ᛁᚾ ᛟᛞᛁᚾ ᛏᛁᛚᛚ ᚢᚨᛚᚺᚨᛚᛚᚨ";
+
 const IDCard = ({
   name = "Debarun Das",
   title = "Software Engineer",
@@ -21,125 +25,467 @@ const IDCard = ({
   logoUrl = "https://api.dicebear.com/7.x/initials/svg?seed=D",
   username = "Debarun2003",
 }: IDCardProps) => {
+  // View/flip
   const [isFlipped, setIsFlipped] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
-  const rotationInterval = useRef<number | null>(null);
+  const [idle, setIdle] = useState(false);
 
+  // Mini-games / console
+  const [locked, setLocked] = useState(true);
+  const [typed, setTyped] = useState("");
+  const [focusConsole, setFocusConsole] = useState(false);
+  const [consoleInput, setConsoleInput] = useState("");
+  const [consoleLines, setConsoleLines] = useState<ConsoleLine[]>([
+    { text: "card.init() -> ready", kind: "sys" },
+    { text: 'type "help" for commands', kind: "sys" },
+  ]);
+
+  // Easter eggs
+  const [clicks, setClicks] = useState(0);
+  const [showEgg, setShowEgg] = useState(false);
+
+  // Motion values
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  const rotateX = useTransform(y, [-100, 100], [30, -30]);
-  const rotateY = useTransform(x, [-100, 100], [-30, 30]);
+  const rotateX = useTransform(y, [-140, 140], [22, -22]);
+  const rotateY = useTransform(x, [-140, 140], [-22, 22]);
+  const tiltGlow = useTransform(x, [-140, 140], [0.25, 0.9]);
 
+  // Constraints
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [constraints, setConstraints] = useState({
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  });
+
+  // Auto flip until interaction
   useEffect(() => {
+    let int: number | undefined;
     if (autoRotate) {
-      rotationInterval.current = window.setInterval(() => {
-        setIsFlipped((prev) => !prev);
-      }, 5000) as unknown as number;
-    } else if (rotationInterval.current) {
-      clearInterval(rotationInterval.current);
+      int = window.setInterval(() => setIsFlipped((p) => !p), 6000);
     }
-
-    return () => {
-      if (rotationInterval.current) {
-        clearInterval(rotationInterval.current);
-      }
-    };
+    return () => int && clearInterval(int);
   }, [autoRotate]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (autoRotate) setAutoRotate(false);
+  // Idle scanner trigger
+  useEffect(() => {
+    let idleTimer: number | undefined;
+    const arm = () => {
+      idleTimer && clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => setIdle(true), 3000);
+    };
+    arm();
+    const onAny = () => {
+      if (idle) setIdle(false);
+      arm();
+    };
+    window.addEventListener("mousemove", onAny);
+    window.addEventListener("click", onAny);
+    window.addEventListener("keydown", onAny);
+    return () => {
+      window.removeEventListener("mousemove", onAny);
+      window.removeEventListener("click", onAny);
+      window.removeEventListener("keydown", onAny);
+      idleTimer && clearTimeout(idleTimer);
+    };
+  }, [idle]);
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+  // Compute drag constraints so card never leaves screen
+  const updateConstraints = () => {
+    if (!wrapRef.current || !cardRef.current) return;
+    const wrap = wrapRef.current.getBoundingClientRect();
+    const card = cardRef.current.getBoundingClientRect();
+    const pad = 16; // small breathing space
 
-    x.set(e.clientX - centerX);
-    y.set(e.clientY - centerY);
+    // motion dragConstraints expect deltas relative to current position
+    setConstraints({
+      top: -(card.top - wrap.top - pad),
+      left: -(card.left - wrap.left - pad),
+      right: wrap.right - card.right - pad,
+      bottom: wrap.bottom - card.bottom - pad,
+    });
   };
 
+  useEffect(() => {
+    updateConstraints();
+    const ro = new ResizeObserver(updateConstraints);
+    wrapRef.current && ro.observe(wrapRef.current);
+    window.addEventListener("resize", updateConstraints);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateConstraints);
+    };
+  }, []);
+
+  // Hover tilt
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (autoRotate) setAutoRotate(false);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    x.set((e.clientX - cx) * 0.6);
+    y.set((e.clientY - cy) * 0.6);
+  };
   const handleMouseLeave = () => {
     x.set(0);
     y.set(0);
   };
 
+  // Click / flip / egg
   const handleClick = () => {
-    setIsFlipped((prev) => !prev);
+    setIsFlipped((p) => !p);
     setAutoRotate(false);
+    setClicks((c) => {
+      const n = c + 1;
+      if (n === 7 || n === 13) {
+        setShowEgg(true);
+        setTimeout(() => setShowEgg(false), 5000);
+        pushConsole({ text: "easter.egg() -> revealed", kind: "sys" });
+      }
+      return n;
+    });
   };
 
+  // Console helpers
+  const pushConsole = (ln: ConsoleLine) =>
+    setConsoleLines((prev) => [...prev.slice(-10), ln]);
+
+  const runCommand = (cmdRaw: string) => {
+    const cmd = cmdRaw.trim();
+    if (!cmd) return;
+    pushConsole({ text: `$ ${cmd}`, kind: "in" });
+
+    const [head, ...rest] = cmd.split(/\s+/);
+    const arg = rest.join(" ");
+
+    switch (head.toLowerCase()) {
+      case "help":
+        pushConsole({
+          text: "help, whoami, title <text>, flip, lock, unlock <key>, clear, egg, rain, about",
+          kind: "out",
+        });
+        break;
+      case "whoami":
+        pushConsole({ text: `${name} @${username}`, kind: "out" });
+        break;
+      case "title":
+        if (arg) {
+          pushConsole({ text: `title.set("${arg}")`, kind: "sys" });
+          // NOTE: only visual feedback; not mutating prop
+        } else pushConsole({ text: "usage: title <text>", kind: "out" });
+        break;
+      case "flip":
+        setIsFlipped((p) => !p);
+        pushConsole({ text: "card.flip()", kind: "sys" });
+        break;
+      case "lock":
+        setLocked(true);
+        pushConsole({ text: "lock engaged", kind: "sys" });
+        break;
+      case "unlock":
+        if (arg === username) {
+          setLocked(false);
+          pushConsole({ text: "unlock success", kind: "sys" });
+        } else {
+          pushConsole({ text: "unlock failed", kind: "out" });
+        }
+        break;
+      case "clear":
+        setConsoleLines([]);
+        break;
+      case "egg":
+        setShowEgg(true);
+        setTimeout(() => setShowEgg(false), 5000);
+        pushConsole({ text: "secret -> " + EGG_MSG, kind: "out" });
+        break;
+      case "rain":
+        // quick scan animation pulse
+        setIdle(true);
+        setTimeout(() => setIdle(false), 1400);
+        pushConsole({ text: "scan.rain()", kind: "sys" });
+        break;
+      case "about":
+        pushConsole({
+          text: "interactive hacker card v1.0 | framer-motion | tailwind",
+          kind: "out",
+        });
+        break;
+      default:
+        pushConsole({ text: `command not found: ${head}`, kind: "out" });
+    }
+  };
+
+  const onConsoleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      runCommand(consoleInput);
+      setConsoleInput("");
+    } else if (e.key === "`") {
+      // prevent escaping the console with backtick
+      e.preventDefault();
+    }
+  };
+
+  // Glitch variants
+  const glitch = useMemo(
+    () => ({
+      rest: { x: 0, y: 0, filter: "none" },
+      hover: {
+        x: [0, -1, 1, 0, 0],
+        y: [0, 1, -1, 0, 0],
+        filter: [
+          "none",
+          "contrast(1.2) hue-rotate(10deg)",
+          "contrast(1.4) hue-rotate(-10deg)",
+          "none",
+          "none",
+        ],
+        transition: { duration: 0.35 },
+      },
+      tap: { scale: 0.98 },
+    }),
+    [],
+  );
+
   return (
-    <div className="flex items-center justify-center h-full w-full bg-black">
+    <div
+      ref={wrapRef}
+      className="flex items-center justify-center h-full w-full bg-black" // keep background exactly as-is
+    >
       <motion.div
-        className="relative w-64 h-96 cursor-pointer"
+        ref={cardRef}
+        className="relative w-72 h-[28rem] cursor-pointer select-none rounded-xl border border-green-500/30 bg-zinc-950/90 shadow-[0_0_24px_rgba(16,185,129,0.35)] overflow-hidden"
         style={{
           perspective: 1000,
           rotateX,
           rotateY,
+          boxShadow: useTransform(
+            tiltGlow,
+            [0, 1],
+            [
+              "0 0 16px rgba(16,185,129,0.35)",
+              "0 0 36px rgba(16,185,129,0.75)",
+            ],
+          ),
         }}
+        drag
+        dragConstraints={constraints}
+        dragElastic={0.15}
+        dragTransition={{ power: 0.2, timeConstant: 220 }}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
+        variants={glitch}
+        whileHover="hover"
+        whileTap="tap"
+        onDragEnd={() => {
+          // slight bounce if released near edge
+          if (!cardRef.current || !wrapRef.current) return;
+          const wrap = wrapRef.current.getBoundingClientRect();
+          const card = cardRef.current.getBoundingClientRect();
+          const near =
+            card.left < wrap.left + 20 ||
+            card.top < wrap.top + 20 ||
+            card.right > wrap.right - 20 ||
+            card.bottom > wrap.bottom - 20;
+          if (near) {
+            // micro shake
+            cardRef.current.animate(
+              [
+                { transform: "translate3d(0,0,0)" },
+                { transform: "translate3d(-6px,0,0)" },
+                { transform: "translate3d(6px,0,0)" },
+                { transform: "translate3d(0,0,0)" },
+              ],
+              { duration: 220, easing: "cubic-bezier(.36,.07,.19,.97)" },
+            );
+          }
+        }}
       >
-        <AnimatePresence initial={false}>
+        {/* Idle scan bar (doesn't change background) */}
+        <AnimatePresence>
+          {idle && (
+            <motion.div
+              className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-emerald-400/30 to-transparent pointer-events-none"
+              initial={{ y: "-100%" }}
+              animate={{ y: "100%" }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.2, ease: "easeInOut" }}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Top bar / username (front only) */}
+        {!isFlipped && (
+          <div className="absolute top-0 left-0 w-full p-2 bg-black/70 z-10">
+            <div className="flex items-center">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-green-500 mr-2">
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <p className="text-emerald-400 font-mono text-xs">{username}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Easter egg flash overlay (on top of everything, inside card only) */}
+        <AnimatePresence>
+          {showEgg && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center bg-black/70 text-emerald-400 font-mono text-center px-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="space-y-2">
+                <div className="text-lg">{EGG_MSG}</div>
+                <div className="text-xs opacity-70">[sealed]</div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Faces */}
+        <AnimatePresence initial={false} mode="wait">
           <motion.div
             key={isFlipped ? "back" : "front"}
-            className="absolute w-full h-full rounded-xl border border-green-500/30 bg-zinc-900 shadow-lg shadow-green-500/20 overflow-hidden"
+            className="absolute w-full h-full"
             initial={{ rotateY: isFlipped ? -180 : 0, opacity: 0 }}
             animate={{ rotateY: isFlipped ? 0 : 0, opacity: 1 }}
             exit={{ rotateY: isFlipped ? 0 : -180, opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.55, ease: "easeInOut" }}
             style={{ backfaceVisibility: "hidden" }}
           >
             {isFlipped ? (
-              // Logo side
-              <div className="flex flex-col items-center justify-center h-full p-4 bg-zinc-900">
-                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-green-500 mb-4">
-                  <img
-                    src={logoUrl}
-                    alt="Logo"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-green-500 text-xl font-mono font-bold">
-                    {name}
-                  </h2>
-                  <p className="text-green-400 font-mono">{title}</p>
-                  <p className="text-green-300 font-mono mt-2">@{username}</p>
-                </div>
-              </div>
-            ) : (
-              // Photo side
-              <div className="relative h-full">
-                <div className="absolute top-0 left-0 w-full p-2 bg-zinc-900/80 z-10">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full overflow-hidden border border-green-500 mr-2">
-                      <img
-                        src={logoUrl}
-                        alt="Logo"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <p className="text-green-500 font-mono text-xs">
-                      {username}
-                    </p>
+              // BACK: Console + Unlock mini-game
+              <div className="flex flex-col h-full">
+                <div className="p-3 border-b border-emerald-500/30 bg-black/70">
+                  <div className="text-emerald-400 font-mono text-sm">
+                    /dev/card/console
                   </div>
                 </div>
-                <img
+
+                {/* Lock panel */}
+                {locked ? (
+                  <div className="flex-1 p-4 flex flex-col items-center justify-center gap-3">
+                    <div className="text-emerald-400 font-mono text-xs opacity-80">
+                      access_key required: type your username to unlock
+                    </div>
+                    <input
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          if (typed.trim() === username) {
+                            setLocked(false);
+                            setTyped("");
+                          }
+                        }
+                      }}
+                      placeholder="> access_key"
+                      className="w-56 bg-black/70 border border-emerald-500/40 rounded px-2 py-1 text-emerald-400 outline-none font-mono text-sm placeholder-emerald-700"
+                      autoFocus
+                    />
+                    <div className="text-xs text-emerald-600">
+                      hint:{" "}
+                      {username.slice(
+                        0,
+                        Math.max(3, Math.floor(username.length / 3)),
+                      )}
+                      ***
+                    </div>
+                  </div>
+                ) : (
+                  // Console
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex-1 overflow-auto p-3 space-y-1">
+                      {consoleLines.map((l, i) => (
+                        <div
+                          key={i}
+                          className={
+                            "font-mono text-xs " +
+                            (l.kind === "sys"
+                              ? "text-emerald-300"
+                              : l.kind === "in"
+                                ? "text-emerald-500"
+                                : "text-emerald-400")
+                          }
+                        >
+                          {l.text}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-emerald-500/30 p-2 flex items-center gap-2">
+                      <span className="text-emerald-500 font-mono text-xs">
+                        λ
+                      </span>
+                      <input
+                        value={consoleInput}
+                        onChange={(e) => setConsoleInput(e.target.value)}
+                        onKeyDown={onConsoleKey}
+                        onFocus={() => setFocusConsole(true)}
+                        onBlur={() => setFocusConsole(false)}
+                        placeholder="try: help"
+                        className={
+                          "flex-1 bg-black/70 border rounded px-2 py-1 text-emerald-400 outline-none font-mono text-sm placeholder-emerald-700 " +
+                          (focusConsole
+                            ? "border-emerald-400/70 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+                            : "border-emerald-500/30")
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // FRONT: Photo side with subtle hacker effects
+              <motion.div
+                className="relative h-full"
+                animate={{ filter: ["none", "none", "none", "saturate(1.15)"] }}
+                transition={{ duration: 1.2 }}
+              >
+                <motion.img
                   src={photoUrl}
                   alt={name}
                   className="w-full h-full object-cover"
+                  whileHover={{
+                    scale: 1.02,
+                    filter: "contrast(1.15) brightness(1.05)",
+                  }}
+                  transition={{ type: "spring", stiffness: 180, damping: 18 }}
                 />
-                <div className="absolute bottom-0 left-0 w-full p-2 bg-zinc-900/80">
-                  <h2 className="text-green-500 font-mono font-bold">{name}</h2>
-                  <p className="text-green-400 font-mono text-sm">{title}</p>
+                <motion.div
+                  className="absolute bottom-0 left-0 w-full p-3 bg-black/80"
+                  initial={{ y: 16, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                >
+                  <div className="text-emerald-400 font-mono">
+                    <div className="font-bold text-emerald-500">{name}</div>
+                    {/* typing effect subtitle */}
+                    <TypingLine text={title} />
+                    <div className="text-xs opacity-80">@{username}</div>
+                  </div>
+                </motion.div>
+
+                {/* subtle corner brackets */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <Corner p="tl" />
+                  <Corner p="tr" />
+                  <Corner p="bl" />
+                  <Corner p="br" />
                 </div>
-              </div>
+              </motion.div>
             )}
           </motion.div>
         </AnimatePresence>
 
-        <div className="absolute bottom-[-30px] left-0 right-0 text-center text-green-500 font-mono text-xs">
+        {/* Footer tag (unchanged) */}
+        <div className="absolute -bottom-6 left-0 right-0 text-center text-green-500 font-mono text-xs">
           [Interactive 3D Card]
         </div>
       </motion.div>
@@ -148,3 +494,39 @@ const IDCard = ({
 };
 
 export default IDCard;
+
+/* ---------- helpers ---------- */
+
+const Corner = ({ p }: { p: "tl" | "tr" | "bl" | "br" }) => {
+  const base = "absolute w-6 h-6 border-2 border-emerald-500/50";
+  const pos =
+    p === "tl"
+      ? "top-2 left-2 border-b-0 border-r-0"
+      : p === "tr"
+        ? "top-2 right-2 border-b-0 border-l-0"
+        : p === "bl"
+          ? "bottom-2 left-2 border-t-0 border-r-0"
+          : "bottom-2 right-2 border-t-0 border-l-0";
+  return <div className={`${base} ${pos}`} />;
+};
+
+const TypingLine = ({ text }: { text: string }) => {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setShown(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, 26);
+    return () => clearInterval(id);
+  }, [text]);
+  return (
+    <div className="text-sm">
+      <span className="after:content-['▊'] after:ml-1 after:animate-pulse">
+        {shown}
+      </span>
+    </div>
+  );
+};
+
