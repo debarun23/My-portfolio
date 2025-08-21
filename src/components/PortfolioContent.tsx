@@ -174,7 +174,7 @@ const PortfolioContent = {
         <div className="text-sm">Aug 2021 – July 2025 | Kolkata, WB</div>
         <div className="text-sm mt-1">
           Relevant Coursework: Data Structures, Software Engineering, APIs,
-          Cloud Computing, Communication Systems, IoT
+          Cloud Computing, Communication Systems
         </div>
       </div>
       <div className="mb-4">
@@ -199,6 +199,13 @@ const PortfolioContent = {
         </div>
         <div className="text-sm text-gray-300">May 2025 - Present</div>
       </div>
+            <div className="mb-3">
+        <div className="font-bold text-green-300">
+          IBM Journey to Cloud: Envisioning Your Solution
+        </div>
+        <div className="text-sm text-gray-300">June 2025 - July 2025</div>
+      </div>
+      <div className="mb-3">
       <div className="mb-3">
         <div className="font-bold text-green-300">
           Deloitte Australia - Technology Job Simulation
