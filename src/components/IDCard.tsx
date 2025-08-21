@@ -5,7 +5,6 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-
 interface IDCardProps {
   name?: string;
   title?: string;
@@ -13,11 +12,8 @@ interface IDCardProps {
   logoUrl?: string;
   username?: string;
 }
-
 type ConsoleLine = { text: string; kind?: "in" | "out" | "sys" };
-
 const EGG_MSG = "ᚹᛖ ᛏᚱᚢᛊᛏ ᛁᚾ ᛟᛞᛁᚾ ᛏᛁᛚᛚ ᚢᚨᛚᚺᚨᛚᛚᚨ";
-
 const IDCard = ({
   name = "Debarun Das",
   title = "Software Engineer",
@@ -29,7 +25,6 @@ const IDCard = ({
   const [isFlipped, setIsFlipped] = useState(false);
   const [autoRotate, setAutoRotate] = useState(true);
   const [idle, setIdle] = useState(false);
-
   // Mini-games / console
   const [locked, setLocked] = useState(true);
   const [typed, setTyped] = useState("");
@@ -39,18 +34,19 @@ const IDCard = ({
     { text: "card.init() -> ready", kind: "sys" },
     { text: 'type "help" for commands', kind: "sys" },
   ]);
-
   // Easter eggs
   const [clicks, setClicks] = useState(0);
   const [showEgg, setShowEgg] = useState(false);
-
+  // Shake effect on lock input
+  const [shakeLock, setShakeLock] = useState(false);
+  // Pulse glow on unlock success
+  const [pulseGlow, setPulseGlow] = useState(false);
   // Motion values
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const rotateX = useTransform(y, [-140, 140], [22, -22]);
   const rotateY = useTransform(x, [-140, 140], [-22, 22]);
   const tiltGlow = useTransform(x, [-140, 140], [0.25, 0.9]);
-
   // Constraints
   const wrapRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -60,7 +56,6 @@ const IDCard = ({
     right: 0,
     bottom: 0,
   });
-
   // Auto flip until interaction
   useEffect(() => {
     let int: number | undefined;
@@ -69,7 +64,6 @@ const IDCard = ({
     }
     return () => int && clearInterval(int);
   }, [autoRotate]);
-
   // Idle scanner trigger
   useEffect(() => {
     let idleTimer: number | undefined;
@@ -92,14 +86,12 @@ const IDCard = ({
       idleTimer && clearTimeout(idleTimer);
     };
   }, [idle]);
-
   // Compute drag constraints so card never leaves screen
   const updateConstraints = () => {
     if (!wrapRef.current || !cardRef.current) return;
     const wrap = wrapRef.current.getBoundingClientRect();
     const card = cardRef.current.getBoundingClientRect();
     const pad = 16; // small breathing space
-
     // motion dragConstraints expect deltas relative to current position
     setConstraints({
       top: -(card.top - wrap.top - pad),
@@ -108,7 +100,6 @@ const IDCard = ({
       bottom: wrap.bottom - card.bottom - pad,
     });
   };
-
   useEffect(() => {
     updateConstraints();
     const ro = new ResizeObserver(updateConstraints);
@@ -119,7 +110,6 @@ const IDCard = ({
       window.removeEventListener("resize", updateConstraints);
     };
   }, []);
-
   // Hover tilt
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (autoRotate) setAutoRotate(false);
@@ -133,7 +123,6 @@ const IDCard = ({
     x.set(0);
     y.set(0);
   };
-
   // Click / flip / egg
   const handleClick = () => {
     setIsFlipped((p) => !p);
@@ -148,19 +137,15 @@ const IDCard = ({
       return n;
     });
   };
-
   // Console helpers
   const pushConsole = (ln: ConsoleLine) =>
     setConsoleLines((prev) => [...prev.slice(-10), ln]);
-
   const runCommand = (cmdRaw: string) => {
     const cmd = cmdRaw.trim();
     if (!cmd) return;
     pushConsole({ text: `$ ${cmd}`, kind: "in" });
-
     const [head, ...rest] = cmd.split(/\s+/);
     const arg = rest.join(" ");
-
     switch (head.toLowerCase()) {
       case "help":
         pushConsole({
@@ -189,8 +174,13 @@ const IDCard = ({
         if (arg === username) {
           setLocked(false);
           pushConsole({ text: "unlock success", kind: "sys" });
+          setPulseGlow(true);
+          setTimeout(() => setPulseGlow(false), 1500);
         } else {
           pushConsole({ text: "unlock failed", kind: "out" });
+          // trigger shake effect on failed unlock
+          setShakeLock(true);
+          setTimeout(() => setShakeLock(false), 300);
         }
         break;
       case "clear":
@@ -217,7 +207,6 @@ const IDCard = ({
         pushConsole({ text: `command not found: ${head}`, kind: "out" });
     }
   };
-
   const onConsoleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       runCommand(consoleInput);
@@ -227,7 +216,6 @@ const IDCard = ({
       e.preventDefault();
     }
   };
-
   // Glitch variants
   const glitch = useMemo(
     () => ({
@@ -248,7 +236,6 @@ const IDCard = ({
     }),
     [],
   );
-
   return (
     <div
       ref={wrapRef}
@@ -256,7 +243,9 @@ const IDCard = ({
     >
       <motion.div
         ref={cardRef}
-        className="relative w-72 h-[28rem] cursor-pointer select-none rounded-xl border border-green-500/30 bg-zinc-950/90 shadow-[0_0_24px_rgba(16,185,129,0.35)] overflow-hidden"
+        className={`relative w-72 h-[28rem] cursor-pointer select-none rounded-xl border border-green-500/30 bg-zinc-950/90 shadow-[0_0_24px_rgba(16,185,129,0.35)] overflow-hidden ${
+          pulseGlow ? "pulse-glow" : ""
+        }`}
         style={{
           perspective: 1000,
           rotateX,
@@ -281,7 +270,6 @@ const IDCard = ({
         whileHover="hover"
         whileTap="tap"
         onDragEnd={() => {
-          // slight bounce if released near edge
           if (!cardRef.current || !wrapRef.current) return;
           const wrap = wrapRef.current.getBoundingClientRect();
           const card = cardRef.current.getBoundingClientRect();
@@ -291,7 +279,6 @@ const IDCard = ({
             card.right > wrap.right - 20 ||
             card.bottom > wrap.bottom - 20;
           if (near) {
-            // micro shake
             cardRef.current.animate(
               [
                 { transform: "translate3d(0,0,0)" },
@@ -307,21 +294,39 @@ const IDCard = ({
         {/* Idle scan bar (doesn't change background) */}
         <AnimatePresence>
           {idle && (
-            <motion.div
-              className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-emerald-400/30 to-transparent pointer-events-none"
-              initial={{ y: "-100%" }}
-              animate={{ y: "100%" }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.2, ease: "easeInOut" }}
-            />
+            <>
+              <motion.div
+                className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-emerald-400/30 to-transparent pointer-events-none"
+                initial={{ y: "-100%" }}
+                animate={{ y: "100%" }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2, ease: "easeInOut" }}
+              />
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.1 }}
+                transition={{
+                  repeat: Infinity,
+                  repeatType: "reverse",
+                  duration: 2,
+                  ease: "easeInOut",
+                }}
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.3) 50%, transparent 100%)",
+                  backgroundSize: "200% 100%",
+                  backgroundPositionX: "0%",
+                }}
+              />
+            </>
           )}
         </AnimatePresence>
-
         {/* Top bar / username (front only) */}
         {!isFlipped && (
           <div className="absolute top-0 left-0 w-full p-2 bg-black/70 z-10">
             <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-green-500 mr-2">
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-green-500 mr-2 hover:scale-105 transition-transform duration-200">
                 <img
                   src={logoUrl}
                   alt="Logo"
@@ -332,7 +337,6 @@ const IDCard = ({
             </div>
           </div>
         )}
-
         {/* Easter egg flash overlay (on top of everything, inside card only) */}
         <AnimatePresence>
           {showEgg && (
@@ -349,7 +353,6 @@ const IDCard = ({
             </motion.div>
           )}
         </AnimatePresence>
-
         {/* Faces */}
         <AnimatePresence initial={false} mode="wait">
           <motion.div
@@ -369,7 +372,6 @@ const IDCard = ({
                     /dev/card/console
                   </div>
                 </div>
-
                 {/* Lock panel */}
                 {locked ? (
                   <div className="flex-1 p-4 flex flex-col items-center justify-center gap-3">
@@ -384,11 +386,18 @@ const IDCard = ({
                           if (typed.trim() === username) {
                             setLocked(false);
                             setTyped("");
+                            setPulseGlow(true);
+                            setTimeout(() => setPulseGlow(false), 1500);
+                          } else {
+                            setShakeLock(true);
+                            setTimeout(() => setShakeLock(false), 300);
                           }
                         }
                       }}
                       placeholder="> access_key"
-                      className="w-56 bg-black/70 border border-emerald-500/40 rounded px-2 py-1 text-emerald-400 outline-none font-mono text-sm placeholder-emerald-700"
+                      className={`w-56 bg-black/70 border rounded px-2 py-1 text-emerald-400 outline-none font-mono text-sm placeholder-emerald-700 transition-transform ${
+                        shakeLock ? "animate-shake" : ""
+                      }`}
                       autoFocus
                     />
                     <div className="text-xs text-emerald-600">
@@ -421,9 +430,19 @@ const IDCard = ({
                       ))}
                     </div>
                     <div className="border-t border-emerald-500/30 p-2 flex items-center gap-2">
-                      <span className="text-emerald-500 font-mono text-xs">
+                      <motion.span
+                        className="text-emerald-500 font-mono text-xs"
+                        animate={{
+                          opacity: [0, 1, 0],
+                        }}
+                        transition={{
+                          repeat: Infinity,
+                          duration: 1.5,
+                          ease: "easeInOut",
+                        }}
+                      >
                         λ
-                      </span>
+                      </motion.span>
                       <input
                         value={consoleInput}
                         onChange={(e) => setConsoleInput(e.target.value)}
@@ -471,7 +490,6 @@ const IDCard = ({
                     <div className="text-xs opacity-80">@{username}</div>
                   </div>
                 </motion.div>
-
                 {/* subtle corner brackets */}
                 <div className="absolute inset-0 pointer-events-none">
                   <Corner p="tl" />
@@ -483,7 +501,6 @@ const IDCard = ({
             )}
           </motion.div>
         </AnimatePresence>
-
         {/* Footer tag (unchanged) */}
         <div className="absolute -bottom-6 left-0 right-0 text-center text-green-500 font-mono text-xs">
           [Interactive 3D Card]
@@ -492,11 +509,8 @@ const IDCard = ({
     </div>
   );
 };
-
 export default IDCard;
-
 /* ---------- helpers ---------- */
-
 const Corner = ({ p }: { p: "tl" | "tr" | "bl" | "br" }) => {
   const base = "absolute w-6 h-6 border-2 border-emerald-500/50";
   const pos =
@@ -509,7 +523,6 @@ const Corner = ({ p }: { p: "tl" | "tr" | "bl" | "br" }) => {
           : "bottom-2 right-2 border-t-0 border-l-0";
   return <div className={`${base} ${pos}`} />;
 };
-
 const TypingLine = ({ text }: { text: string }) => {
   const [shown, setShown] = useState("");
   useEffect(() => {
@@ -530,3 +543,24 @@ const TypingLine = ({ text }: { text: string }) => {
   );
 };
 
+/* Add shake animation CSS - add this to your global CSS or Tailwind config */
+const style = document.createElement("style");
+style.innerHTML = `
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.3s ease-in-out;
+}
+.pulse-glow {
+  animation: pulse-glow 1.5s ease-in-out forwards;
+}
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 24px rgba(16,185,129,0.75); }
+  50% { box-shadow: 0 0 48px rgba(16,185,129,1); }
+  100% { box-shadow: 0 0 24px rgba(16,185,129,0.75); }
+}
+`;
+document.head.appendChild(style);
